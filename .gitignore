@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-tools
+.vercel
+# рабочие картинки и утилиты генерации в корне — не код магазина
+/*.png
+/*.JPG
+/*.HEIC
+/tmp
+/output
+/.agents
+.env*.local
+.orders.local.json
+
+.vercel

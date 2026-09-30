@@ -1,0 +1,19 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/my_pocket_dimention",
+      "destination": "https://ram-works.vercel.app/my_pocket_dimention"
+    },
+    {
+      "source": "/my_pocket_dimention/",
+      "destination": "https://ram-works.vercel.app/my_pocket_dimention/"
+    },
+    {
+      "source": "/my_pocket_dimention/:path*",
+      "destination": "https://ram-works.vercel.app/my_pocket_dimention/:path*"
+    }
+  ]
+}

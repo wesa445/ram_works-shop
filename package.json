@@ -1,0 +1,26 @@
+{
+  "name": "ram-works-shop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:tools": "vite build --mode tools",
+    "check": "node scripts/check-orders.mjs",
+    "deploy": "npm run check && vercel deploy --prod --yes --project ram-works-shop",
+    "deploy:dev": "npm run check && vercel deploy --prod --yes --project ram-works-shop-dev",
+    "scene": "C:/Games/Steam/steamapps/common/Blender/blender.exe -b \"D:/Blender Projects/Aquarium/Wear/Jacket.blend\" --python scripts/export-scene.py -- public/scene.glb"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.2.2"
+  }
+}

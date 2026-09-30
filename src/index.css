@@ -1,0 +1,300 @@
+/* Шрифт положен целиком: лицензия Прагматики запрещает менять знаковый состав — не сабсетить */
+@font-face {
+  font-family: 'Lebowski';
+  src: url('/fonts/lebowski.woff2') format('woff2');
+  font-display: swap;
+}
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+}
+
+body {
+  font: 16px/1.5 system-ui, sans-serif;
+  color: #e8e8e8;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* Интерфейс по макетам из Paper. Кадр макета 1919×917: поля 40 px по бокам, 8 px сверху и снизу.
+   Слой не ловит мышь — только кнопки, иначе сцену под ним не покрутить. */
+.ui {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  color: #fff;
+  font: 24px/30px 'Lebowski', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.ui button {
+  pointer-events: auto;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.ui button:disabled { cursor: default; }
+/* Ссылки-кнопки (рапорт, «оформить выдачу») выглядят как кнопки в скобках */
+.ui a { pointer-events: auto; color: inherit; text-decoration: none; }
+.ui a:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
+.ui button:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
+.ui h1, .ui h2, .ui p { margin: 0; font-size: inherit; font-weight: normal; line-height: inherit; }
+.ui .dim { opacity: .3; }
+
+.ui .brand { position: absolute; left: 40px; top: 8px; display: flex; align-items: flex-start; gap: 8px; }
+.ui .brand img { display: block; }
+.ui .cart { position: absolute; right: 40px; top: 8px; }
+.ui .cart:disabled { opacity: .3; } /* корзина выключена (CART_ENABLED) */
+.ui .bureau { position: absolute; left: 40px; bottom: 8px; display: flex; flex-direction: column; }
+.ui .bureau-name { font-size: 32px; line-height: 40px; }
+.ui .title {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  font-size: 40px;
+  line-height: 48px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Общий план и карточка: переключаются прозрачностью. Пока камера летит — не видно ни того, ни другого */
+.ui .layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .6s ease, visibility 0s .6s;
+}
+.ui-home .home, .ui-card .card {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .6s ease;
+}
+
+.ui .nav { position: absolute; top: 50%; transform: translateY(-50%); opacity: .3; line-height: 0; }
+.ui .nav-prev { left: 40px; }
+.ui .nav-next { right: 40px; }
+.ui .arrow-next { transform: rotate(180deg); }
+.ui .soon { position: absolute; right: 40px; top: calc(50% + 32px); }
+.ui .open { position: absolute; right: 40px; bottom: 8px; }
+
+/* Подсказка «можно покрутить» — только на крупном плане: под курткой, над названием */
+.ui .spin-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity .6s ease;
+}
+.ui-card .spin-hint { opacity: .85; }
+
+/* Крестик — только на крупном плане: правый нижний угол сетки, где на общем плане «[ ознакомиться ]» */
+.ui .close {
+  position: absolute;
+  right: 40px;
+  bottom: 9px; /* по центру строки 30 px, как у кнопок в углах */
+  line-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .6s ease, visibility 0s .6s;
+}
+.ui-card .close { opacity: 1; visibility: visible; transition: opacity .6s ease; }
+
+.ui .card {
+  display: grid;
+  grid-template-columns: max-content 1fr 476px;
+  column-gap: 40px;
+  padding: 0 82px 0 40px;
+  align-items: center;
+}
+.ui .card-main { display: flex; flex-direction: column; align-items: flex-start; gap: 40px; }
+.ui .card-facts { display: flex; flex-direction: column; gap: 16px; font-size: 16px; line-height: 20px; }
+.ui .spec { display: flex; gap: 8px; }
+.ui .buy { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ui .sizes { display: flex; gap: 8px; }
+.ui .sizes button { opacity: .4; }
+.ui .sizes button.on { opacity: 1; }
+.ui .add:disabled { opacity: .3; } /* пока не выбран размер */
+.ui .card-text { max-width: 476px; }
+.ui .card-lore {
+  grid-column: 3;
+  align-self: start;
+  margin-top: 32vh; /* в макете блок стоит на трети высоты кадра */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 16px;
+  line-height: 20px;
+}
+/* Рапорт ещё не написан — кнопка есть, но неактивна */
+.ui .card-lore .report { align-self: flex-start; margin-top: 8px; }
+
+/* Корзина — попап поверх всего. Панель по сетке: справа под «[ корзина ]», шириной в текстовую колонку */
+.cart-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  font: 16px/20px 'Lebowski', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.cart-panel {
+  position: absolute;
+  right: 40px;
+  top: 48px;
+  width: 476px;
+  max-height: calc(100% - 96px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #080808; /* сплошной: сквозь полупрозрачный просвечивал текст карточки (замер 88 из 255) */
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.cart-popup button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cart-popup button:disabled { opacity: .3; cursor: default; }
+.cart-popup :focus-visible { outline: 1px solid #fff; outline-offset: 4px; }
+.cart-popup h2, .cart-popup p { margin: 0; font-size: inherit; font-weight: normal; }
+.cart-popup .dim { opacity: .3; }
+.cart-popup .note { opacity: .6; } /* пояснения перед покупкой — их должно быть легко прочесть */
+.cart-head { display: flex; justify-content: space-between; align-items: center; font-size: 24px; line-height: 30px; }
+.cart-close { line-height: 0; }
+.cart-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.cart-items li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, .15);
+}
+.cart-row { align-self: stretch; display: flex; justify-content: space-between; }
+.cart-qty { display: flex; gap: 8px; }
+.cart-total, .cart-form button[type='submit'] { font-size: 24px; line-height: 30px; }
+.cart-form { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.cart-form label { align-self: stretch; display: flex; flex-direction: column; gap: 4px; }
+.cart-form input:not([type='checkbox']), .cart-form textarea {
+  font: inherit;
+  color: #fff;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 0;
+  padding: 6px 0;
+  outline: none;
+  resize: vertical;
+}
+.cart-form input:focus, .cart-form textarea:focus { border-bottom-color: #fff; }
+.cart-form .cart-consent { flex-direction: row; align-items: flex-start; gap: 8px; }
+.cart-consent input { accent-color: #fff; margin: 2px 0 0; }
+.cart-consent a { color: inherit; }
+.cart-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.cart-done { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+
+/* Белая плашка карточки — только на телефоне */
+.ui .bar { display: none; }
+
+@media (max-width: 900px) {
+  /* Корзина на телефоне — на весь экран под шапкой */
+  .cart-panel { left: 0; right: 0; top: 72px; bottom: 0; width: auto; max-height: none; padding: 16px; }
+
+  .ui { font-size: 16px; line-height: 20px; }
+  .ui .brand { left: 16px; }
+  .ui .brand img { width: 29px; height: 53px; }
+  .ui .cart { right: 16px; }
+  .ui .bureau { left: 16px; }
+  .ui .bureau-name { font-size: 20px; line-height: 24px; }
+  /* --foot — высота белой плашки карточки: поля 16 + название в две строки 52 + зазор 29 + кнопка 36;
+     --card-h — высота блока с текстом карточки над ней */
+  .ui { --foot: 150px; --card-h: 30vh; }
+  .ui .title { bottom: 64px; width: calc(100% - 32px); white-space: normal; font-size: 22px; line-height: 26px; }
+  /* В карточке название и подпись Бюро убираются — их место занимает белая плашка */
+  .ui .title, .ui .bureau { transition: opacity .6s ease, visibility 0s; }
+  .ui-card .title, .ui-card .bureau { opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility 0s .6s; }
+  .ui .nav-prev { left: 16px; }
+  .ui .nav-next, .ui .soon, .ui .open { right: 16px; }
+  .ui .nav svg { width: 18px; height: 34px; }
+
+  /* Карточка на телефоне — прокручиваемый блок снизу, под курткой. Порядок другой, чем на десктопе:
+     лор → описание → характеристики. Обёртки колонок растворяем (display: contents), чтобы все
+     блоки стали соседями и их можно было переставить через order. */
+  .ui .card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch; /* у десктопной сетки center — короткие строки съезжали в середину */
+    gap: 16px;
+    top: auto;
+    bottom: var(--foot); /* над названием товара — оно на телефоне в две строки */
+    max-height: var(--card-h);
+    overflow-y: auto;
+    padding: 16px 16px 0;
+    pointer-events: auto;
+  }
+  .ui .card-main, .ui .card-facts { display: contents; }
+  .ui .card-lore { order: 1; margin-top: 0; padding-bottom: 16px; border-bottom: 1px solid #fff; } /* линия отделяет лор от описания */
+  .ui .card-facts > .card-text { order: 2; }
+  .ui .spec { order: 3; }
+  .ui .card-facts > p:not(.card-text) { order: 4; } /* «Лимитированная модель» */
+
+  /* Цена и кнопка на телефоне — в белой плашке (.bar), колоночный блок не нужен */
+  .ui .buy { display: none; }
+
+  /* Белая плашка по макету: ширина 100%, поля по сетке, тёмный текст, тёмная кнопка */
+  .ui .bar {
+    display: flex;
+    flex-direction: column;
+    gap: 29px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    box-sizing: border-box;
+    padding: 16px;
+    background: #fff;
+    color: #222;
+    font-size: 21px;
+    line-height: 26px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .6s ease, visibility 0s .6s;
+  }
+  .ui-card .bar { opacity: 1; visibility: visible; transition: opacity .6s ease; }
+  .ui .bar-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .ui .bar-order { background: #222; color: #fff; padding: 8px; font-size: 16px; line-height: 20px; }
+
+  /* Подсказка — над текстом карточки, под курткой */
+  .ui .spin-hint { bottom: calc(var(--foot) + var(--card-h) + 12px); }
+  .ui .close { right: 16px; bottom: calc(var(--foot) + var(--card-h) + 14px); } /* справа над текстом, на линии со значком */
+
+  /* Затемнение под карточкой — до самого низа экрана, под названием и подписями тоже */
+  .ui::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--foot) + var(--card-h) + 16px);
+    background: linear-gradient(to top, rgba(0, 0, 0, .8), rgba(0, 0, 0, .45) calc(100% - 48px), transparent);
+    opacity: 0;
+    transition: opacity .6s ease;
+  }
+  .ui-card::before { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui .layer, .ui-home .home, .ui-card .card, .ui::before, .ui .spin-hint, .ui .close, .ui .bar, .ui .title, .ui .bureau { transition: none; }
+}

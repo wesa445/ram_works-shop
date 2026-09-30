@@ -1,0 +1,52 @@
+/* Обычные страницы (админка, политика) — тот же шрифт и палитра, что у витрины, но обычная прокручиваемая страница */
+html, body { overflow: auto; height: auto; min-height: 100%; }
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  color: #fff;
+  font: 16px/20px 'Lebowski', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.page h1, .page p { margin: 0; font-size: inherit; font-weight: normal; }
+.page h1 { font-size: 24px; line-height: 30px; }
+.page .dim { opacity: .3; }
+.page a { color: inherit; }
+.page button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.page button:disabled { opacity: .3; cursor: default; }
+.page :focus-visible { outline: 1px solid #fff; outline-offset: 4px; }
+
+.admin-login { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 32px; }
+.admin-login label { display: flex; flex-direction: column; gap: 4px; }
+.admin-login input {
+  font: inherit;
+  color: #fff;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 0;
+  padding: 6px 0;
+  outline: none;
+}
+.admin-login input:focus { border-bottom-color: #fff; }
+
+.admin-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.admin-actions { display: flex; gap: 16px; }
+.admin-orders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.admin-orders li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 0;
+  border-top: 1px solid rgba(255, 255, 255, .15);
+}
+.admin-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+.admin-item { display: flex; justify-content: space-between; gap: 16px; }
+.admin-comment { opacity: .6; white-space: pre-wrap; }
+
+/* Политика — длинный текст: разделы, списки, читаемые абзацы */
+.policy h2 { margin: 32px 0 8px; font-size: 16px; font-weight: normal; opacity: .6; }
+.policy p + p { margin-top: 8px; }
+.policy ul { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.policy .back { display: inline-block; margin-top: 40px; }

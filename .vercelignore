@@ -1,0 +1,13 @@
+# Vercel собирает проект сам (vercel.json) — ему нужны исходники, но не сборки, не секреты
+# и не рабочие картинки из корня (там файлы по 16 МБ)
+node_modules
+dist
+dist-tools
+.env*.local
+.orders.local.json
+/*.png
+/*.JPG
+/*.HEIC
+/tmp
+/output
+/.agents
