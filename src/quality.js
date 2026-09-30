@@ -21,5 +21,6 @@ export const QUALITY = TOUCH
       lambert: true, // все неметаллы без блика: физический материал — ещё треть кадра
       fpsCap: 60, // экраны 90–120 Гц: браузер зовёт кадр чаще, чем нужно глазу
       shadowMap: 1024,
+      shadowEvery: 6, // пока куртка крутится, тени пересчитываются раз в столько кадров
     }
-  : { maxDpr: 2, hazeSteps: 24, hazeScale: 1, bloom: true, lambert: false, fpsCap: 0, shadowMap: 2048 }
+  : { maxDpr: 2, hazeSteps: 24, hazeScale: 1, bloom: true, lambert: false, fpsCap: 0, shadowMap: 2048, shadowEvery: 1 }

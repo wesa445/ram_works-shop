@@ -79,14 +79,22 @@ const ARRIVE_AT = 0.1 // доля дистанции, на которой нае
 // На узком экране карточка товара — блок текста и белая плашка снизу (index.css, граница 900 px).
 // Камера при наезде опускается, чтобы товар встал над текстом, и подъезжает ближе.
 const NARROW = 900
-const NARROW_LIFT = 0.12 // сдвиг центра товара от середины кадра вверх, в долях высоты кадра
-const NARROW_ZOOM = 0.85 // множитель дистанции наезда: меньше — товар крупнее
+// Зоны карточки на узком экране сверху вниз: шапка, товар, ряд значка «можно покрутить», текст,
+// белая плашка. Зеркало index.css (--foot, --card-h и отступы значка) — менять вместе. Камера вписывает
+// товар в его зону, поэтому текст на него не заезжает при любой высоте телефона.
+const CARD_ZONES = { top: 72, hint: 56, bar: 150, text: 0.26 } // px, px, px, доля высоты экрана
+const ZONE_FILL = 0.92 // какую долю зоны занимает товар — остальное поля
 // Общий план на узком экране: комната мелкая, вокруг пустота — подъезжаем ближе на долю пути до
 // товара. 0.44 — оставшийся путь 0.56 = прежние 0.7 × 0.8, «ближе на 20%». Десктоп — кадр из Блендера.
 const NARROW_DOLLY = 0.44
 
 // Куртку при наезде можно крутить перетаскиванием: радиан на пиксель
 const SPIN_PER_PX = 0.01
+// Подсказка «можно покрутить»: на крупном плане куртка сама медленно вращается, пока её не трогают.
+const AUTO_SPIN = 0.25 // рад/с — оборот за 25 секунд
+const AUTO_SPIN_START = 1500 // мс после открытия карточки: сначала камера доезжает
+const AUTO_SPIN_RESUME = 2500 // мс после того, как человек отпустил куртку
+const REDUCED_MOTION = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 const SPUN = ['Jacket', 'JacketBack']
 
 // Текстуры куртки без потерь (пишет export-scene.py). В GLB — сжатые копии: показываются, пока
@@ -221,7 +229,8 @@ function CameraRig({ paramsRef, home, focus, focused, onArrive }) {
     let goal = home
 
     if (focused && focus) {
-      const distance = focus.distance * p.focusZoom
+      // На узком экране дистанция уже посчитана точно под зону — ползунок «Запас кадра» не участвует
+      const distance = focus.exact ? focus.distance : focus.distance * p.focusZoom
       // Сдвиг зависит от дистанции (высота кадра на ней), а её двигает ползунок — считаем здесь
       _goalCenter.copy(focus.center)
       _goalCenter.y -= focus.lift * distance
@@ -559,10 +568,20 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
         if (axis.lengthSq() > 0) dir.applyAxisAngle(axis, (pitch * Math.PI) / 180).normalize()
       }
 
-      // Высота кадра на единицу дистанции — 2·tg(½ угла); lift — сдвиг на единицу дистанции
-      const lift = size.width < NARROW ? NARROW_LIFT * 2 * Math.tan(halfFov) : 0
-      const narrow = size.width < NARROW ? NARROW_ZOOM : 1
-      map.set(id, { center, dir, distance: distance * zoom * narrow, lift })
+      if (size.width >= NARROW) {
+        map.set(id, { center, dir, distance: distance * zoom, lift: 0, exact: false })
+        continue
+      }
+
+      // Узкий экран: вписываем товар в его зону. Высота кадра на расстоянии d — 2·d·tg(½ угла),
+      // товару по высоте достаётся доля зоны, по ширине — весь экран. lift — на сколько опустить
+      // точку взгляда на единицу дистанции, чтобы товар встал в центр зоны, а не экрана.
+      const t = Math.tan(halfFov)
+      const H = size.height
+      const zoneH = Math.max(H - CARD_ZONES.top - CARD_ZONES.hint - CARD_ZONES.text * H - CARD_ZONES.bar, H * 0.2)
+      const fit = Math.max(extent.y / 2 / (t * (zoneH / H)), across / 2 / (t * aspect)) / ZONE_FILL
+      const lift = (0.5 - (CARD_ZONES.top + zoneH / 2) / H) * 2 * t
+      map.set(id, { center, dir, distance: fit, lift, exact: true })
     }
     return map
   }, [targets, home, camera, size, fov])
@@ -576,7 +595,7 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
       .map((object) => ({ object, base: object.quaternion.clone() })),
     [scene],
   )
-  const spin = useRef({ angle: 0, goal: 0, dragX: null })
+  const spin = useRef({ angle: 0, goal: 0, dragX: null, autoAt: Infinity, stale: false, tick: 0 })
 
   useEffect(() => {
     const s = spin.current
@@ -585,8 +604,10 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
       // раскручивалась бы назад все три
       s.goal = Math.round(s.angle / (2 * Math.PI)) * 2 * Math.PI
       s.dragX = null
+      s.autoAt = Infinity
       return undefined
     }
+    s.autoAt = performance.now() + AUTO_SPIN_START
     const canvas = gl.domElement
     const down = (e) => { s.dragX = e.clientX }
     const move = (e) => {
@@ -594,7 +615,10 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
       s.goal += (e.clientX - s.dragX) * SPIN_PER_PX
       s.dragX = e.clientX
     }
-    const up = () => { s.dragX = null }
+    const up = () => {
+      if (s.dragX != null) s.autoAt = performance.now() + AUTO_SPIN_RESUME
+      s.dragX = null
+    }
     canvas.addEventListener('pointerdown', down)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -644,11 +668,22 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
 
   useFrame((state, delta) => {
     const s = spin.current
-    if (Math.abs(s.goal - s.angle) > 1e-4) {
+    // Сама крутится, пока человек не взялся за неё; после отпускания — пауза и снова
+    if (!REDUCED_MOTION && s.dragX == null && performance.now() > s.autoAt) s.goal += AUTO_SPIN * delta
+
+    const moving = Math.abs(s.goal - s.angle) > 1e-4
+    if (moving) {
       s.angle += (s.goal - s.angle) * (1 - Math.pow(1 - 0.15, delta * 60))
       _spin.setFromAxisAngle(_up, s.angle)
       for (const { object, base } of spun) object.quaternion.copy(base).premultiply(_spin)
-      gl.shadowMap.needsUpdate = true // тень куртки на стене поворачивается вместе с ней
+      s.stale = true
+    }
+    // Тень куртки на стене поворачивается вместе с ней. Пока крутится — раз в несколько кадров
+    // (quality.js): при непрерывном вращении пересчёт карт теней каждый кадр дорог на телефоне.
+    // Остановилась — досчитываем сразу, чтобы тень не застыла в промежуточном положении.
+    if (s.stale && (!moving || ++s.tick % QUALITY.shadowEvery === 0)) {
+      gl.shadowMap.needsUpdate = true
+      s.stale = false
     }
 
     let active = null

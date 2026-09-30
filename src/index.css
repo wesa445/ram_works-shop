@@ -219,8 +219,9 @@ canvas {
   .ui .bureau { left: 16px; }
   .ui .bureau-name { font-size: 20px; line-height: 24px; }
   /* --foot — высота белой плашки карточки: поля 16 + название в две строки 52 + зазор 29 + кнопка 36;
-     --card-h — высота блока с текстом карточки над ней */
-  .ui { --foot: 150px; --card-h: 30vh; }
+     --card-h — высота блока с текстом карточки над ней. Зеркало CARD_ZONES в Scene.jsx: по этим же
+     числам камера вписывает куртку в зону над текстом — менять вместе */
+  .ui { --foot: 150px; --card-h: 26vh; }
   .ui .title { bottom: 64px; width: calc(100% - 32px); white-space: normal; font-size: 22px; line-height: 26px; }
   /* В карточке название и подпись Бюро убираются — их место занимает белая плашка */
   .ui .title, .ui .bureau { transition: opacity .6s ease, visibility 0s; }
@@ -263,6 +264,8 @@ canvas {
     right: 0;
     bottom: 0;
     box-sizing: border-box;
+    min-height: var(--foot); /* название в одну строку на широком телефоне — плашка той же высоты, без щели над ней */
+    justify-content: space-between;
     padding: 16px;
     background: #fff;
     color: #222;
