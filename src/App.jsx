@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import Scene from './Scene.jsx'
 import Overlay from './Overlay.jsx'
 import Cart from './Cart.jsx'
+import Preloader from './Preloader.jsx'
 import { useCart } from './cart.js'
 import { CATALOG, productFromHash } from './product.js'
 import { PARAMS } from './params.js'
@@ -107,6 +108,9 @@ export default function App() {
         onAdd={cart.add}
       />
       <Cart open={cartOpen} onClose={closeCart} cart={cart} />
+
+      {/* Первый вход: полоса загрузки и глаз, как в портфолио. Закрывается один раз */}
+      <Preloader />
 
       {Panel && wide && (
         <Suspense fallback={null}>

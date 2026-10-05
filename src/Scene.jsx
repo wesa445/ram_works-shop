@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { PerformanceMonitor, useGLTF } from '@react-three/drei'
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
+import { PerformanceMonitor } from '@react-three/drei'
 import {
   AgXToneMapping,
   BackSide,
@@ -21,6 +21,9 @@ import {
   Vector3,
 } from 'three'
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
+import { setSceneBytes } from './loading.js'
 import { createRenderer } from './renderer.js'
 import Effects from './Effects.jsx'
 import { QUALITY } from './quality.js'
@@ -42,6 +45,18 @@ const SOFTWARE_RENDERER = (() => {
 // Сцена товара — свой GLB (product.scene), собирается из Jacket.blend скриптом
 // scripts/export-scene.py (npm run scene). Грузится только сцена товара на экране.
 const DRACO = '/draco/' // меши сжаты Draco, декодер лежит локально — без внешнего CDN
+
+const withDraco = (loader) => {
+  const draco = new DRACOLoader()
+  draco.setDecoderPath(DRACO)
+  loader.setDRACOLoader(draco)
+}
+
+// Байты сцены — для полосы прелоадера (Preloader.jsx): счётчик файлов three стоит на нуле,
+// пока качается единственный трёхмегабайтный glb
+const onSceneProgress = (event) => {
+  if (event.lengthComputable) setSceneBytes(event.loaded, event.total)
+}
 const SHADOW_MAP = SOFTWARE_RENDERER ? 512 : QUALITY.shadowMap
 
 // Тени бросают только узкие прожекторы. Потолочные лампы в GLB — бывшие area-лампы с
@@ -331,7 +346,8 @@ function disposeScene(scene) {
 }
 
 function Model({ product, paramsRef, focusedId, onFocus, onArrive, onShown, slide, enterFrom }) {
-  const { scene, cameras } = useGLTF(product.scene, DRACO)
+  // Напрямую через загрузчик, а не useGLTF: тому не передать onProgress для полосы прелоадера
+  const { scene, cameras } = useLoader(GLTFLoader, product.scene, withDraco, onSceneProgress)
 
   // Сцена на экране — сообщаем наверх: там выгружается прошлая и снимается затемнение перехода.
   // Выгружать в очистке этого же эффекта нельзя: StrictMode в dev зовёт её сразу после монтирования,
@@ -764,7 +780,7 @@ export default function Scene({ product, paramsRef, focusedId, onFocus, onArrive
     const prev = shown.current
     if (prev && prev.url !== url) {
       disposeScene(prev.scene)
-      useGLTF.clear(prev.url)
+      useLoader.clear(GLTFLoader, prev.url)
     }
     shown.current = { url, scene }
     onReady?.()
