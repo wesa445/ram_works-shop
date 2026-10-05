@@ -1,7 +1,9 @@
 // Проверка приёма заказа: node scripts/check-orders.mjs (npm run check) — молчит, если всё в порядке.
 import assert from 'node:assert/strict'
 import { validateOrder } from '../api/orders.js'
-import { PRODUCT } from '../src/product.js'
+import { CATALOG } from '../src/product.js'
+
+const PRODUCT = CATALOG[0]
 
 const [M, L] = PRODUCT.sizes
 const ok = { items: [{ id: PRODUCT.id, size: M, qty: 2 }], name: 'Имя', contact: '@tg', address: 'Город', consent: true }

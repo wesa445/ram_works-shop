@@ -1,4 +1,7 @@
-// Товар на витрине. id совпадает с целью наезда камеры в Scene.jsx (TARGETS).
+// Товары на витрине. Порядок в CATALOG — порядок перелистывания стрелками.
+//
+// У каждого товара своя сцена: scene — GLB комнаты с этой вещью (scripts/export-scene.py),
+// meshes — имена вещи и её изнанки в GLB, textures — текстуры без потерь поверх сжатых из GLB.
 //
 // Два слоя, граница жёсткая (канон проекта, Secret Materials/CLAUDE.md):
 //   specs, note, description — факты о вещи, обычным языком. Их нельзя подменять вымыслом.
@@ -6,9 +9,12 @@
 //
 // Исключение по решению владельца (2026-09-27): последняя фраза description про изомер и защиту
 // от аномалий ЯВ — вымысел в блоке фактов. Перенос в lore — на усмотрение владельца.
-export const PRODUCT = {
+const JACKET = {
   id: 'jacket',
   title: 'AQ-team Field Jacket (измененный экземпляр)',
+  scene: '/scene-jacket.glb',
+  meshes: ['Jacket', 'JacketBack'],
+  textures: [['Jacket', '/textures/jacket-front.webp'], ['JacketBack', '/textures/jacket-back.webp']],
   specs: [
     ['Материал', 'канвас'],
     ['Состав', '100% хлопок'],
@@ -32,8 +38,24 @@ export const PRODUCT = {
   ],
 }
 
+// ЗАГЛУШКА (2026-10-05): описание, цена, лор и кнопка — от куртки, по просьбе владельца,
+// пока он не пришлёт свои. Название — по имени файла Hoodie(Grey).blend.
+const HOODIE = {
+  ...JACKET,
+  id: 'hoodie',
+  title: 'Hoodie (Grey)',
+  scene: '/scene-hoodie.glb',
+  meshes: ['Hoodie', 'HoodieBack'],
+  textures: [['Hoodie', '/textures/hoodie-front.webp'], ['HoodieBack', '/textures/hoodie-back.webp']],
+}
+
+export const CATALOG = [JACKET, HOODIE]
+
 // Каталог по id — для корзины и сервера. Сервер берёт цены отсюда, а не из запроса покупателя.
-export const PRODUCTS = { [PRODUCT.id]: PRODUCT }
+export const PRODUCTS = Object.fromEntries(CATALOG.map((p) => [p.id, p]))
+
+// Ссылка вида /#hoodie открывает сразу этот товар крупным планом
+export const productFromHash = () => Math.max(0, CATALOG.findIndex((p) => p.id === location.hash.slice(1)))
 
 // Больше этого одного товара в заказ не положить — общее для корзины и сервера
 export const MAX_QTY = 10

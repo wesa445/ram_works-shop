@@ -301,3 +301,26 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .ui .layer, .ui-home .home, .ui-card .card, .ui::before, .ui .spin-hint, .ui .close, .ui .bar, .ui .title, .ui .bureau { transition: none; }
 }
+
+/* Затемнение при переходе между товарами (App.jsx, FADE_MS — та же длительность) */
+.fade {
+  position: fixed;
+  inset: 0;
+  z-index: 15; /* над интерфейсом, под корзиной */
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .6s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font: 16px/20px 'Lebowski', system-ui, sans-serif;
+}
+.fade.on { opacity: 1; pointer-events: auto; }
+/* Подпись видна, только если сцена грузится дольше секунды — на быстром переходе её нет */
+.fade span { opacity: 0; }
+.fade.on span { animation: fade-label .3s ease 1.2s forwards; }
+@keyframes fade-label { to { opacity: .4; } }
+.ui .nav:disabled { cursor: default; }
+.ui .nav:not(:disabled):hover { opacity: 1; }

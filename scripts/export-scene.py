@@ -1,10 +1,34 @@
-# Экспорт сцены магазина из Блендера в public/scene.glb.
-#   npm run scene
+# Экспорт сцены товара из Блендера: public/scene-<товар>.glb и текстуры товара.
+#   npm run scene  (все товары по очереди)
+#   blender -b Jacket.blend --python scripts/export-scene.py -- public/scene-hoodie.glb hoodie
 # Правки делаются только в памяти — .blend не сохраняется и не меняется.
+#
+# Все вещи стоят в одной сцене Jacket.blend на одном месте (куртка, худи). Сцена товара — это
+# комната с одной вещью: остальные вещи удаляем, шест и крючок перевешиваем на оставшуюся.
 import bpy, math, os, sys
 import numpy as np
 
-out = sys.argv[sys.argv.index('--') + 1]
+out, product = sys.argv[sys.argv.index('--') + 1:][:2]
+
+# object — объект в .blend, name — имя в GLB (по нему его ищет Scene.jsx, products.js),
+# front/back — картинки лицевой стороны и изнанки из материала с Mix Shader по Backfacing
+GARMENTS = {
+    'jacket': {'object': 'Jacket', 'name': 'Jacket', 'front': 'Jacket Texture.png.001', 'back': 'Jacket Texture Back.png'},
+    'hoodie': {'object': 'Plane.002', 'name': 'Hoodie', 'front': 'hoodie texture.png', 'back': 'hoodie texture(back).png'},
+}
+garment = GARMENTS[product]
+hanger = bpy.data.objects[GARMENTS['jacket']['object']]  # шест и крючок — дети куртки
+keep = bpy.data.objects[garment['object']]
+for child in list(hanger.children):
+    if keep is not hanger:
+        world = child.matrix_world.copy()
+        child.parent = keep
+        child.matrix_world = world  # перевешиваем, не сдвигая: шест крутится вместе с вещью
+for other in GARMENTS.values():
+    obj = bpy.data.objects[other['object']]
+    if obj is not keep:
+        bpy.data.objects.remove(obj, do_unlink=True)
+keep.name = garment['name']
 
 # glTF не знает area-ламп — экспортёр их молча выкидывает. Меняем на прожектор с конусом
 # в полусферу: светит так же вниз и в стороны. Мощность ×4: экспортёр делит ватты
@@ -16,9 +40,9 @@ for o in bpy.data.objects:
         o.data.spot_size = math.pi
         o.data.spot_blend = 1.0
 
-# Куртка в Блендере — один материал, где Mix Shader по Backfacing выбирает лицевую или
-# изнаночную текстуру. В glTF такого нет. Делим на два объекта: Jacket с лицевой текстурой
-# и JacketBack с изнанкой; сцена рисует первый только лицом, второй — только изнанкой.
+# Вещь в Блендере — один материал, где Mix Shader по Backfacing выбирает лицевую или
+# изнаночную текстуру. В glTF такого нет. Делим на два объекта: <Имя> с лицевой текстурой
+# и <Имя>Back с изнанкой; сцена рисует первый только лицом, второй — только изнанкой.
 def textured(name, image):
     m = bpy.data.materials.new(name)
     nodes, links = m.node_tree.nodes, m.node_tree.links
@@ -29,20 +53,20 @@ def textured(name, image):
     links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
     return m
 
-# У текстур куртки есть альфа, но в материале она не подключена: Блендер показывает цвет
+# У текстур вещей есть альфа, но в материале она не подключена: Блендер показывает цвет
 # под прозрачными пикселями. Сжатие WebP этот цвет выбрасывает — куртка выходила белой.
-for name in ('Jacket Texture Back.png', 'Jacket Texture.png.001'):
+for name in (garment['front'], garment['back']):
     bpy.data.images[name].alpha_mode = 'NONE'
 
-# Текстуры куртки — сам товар. Общее WebP-сжатие GLB срезало резкость принта на 14%, поэтому
+# Текстуры вещи — сам товар. Общее WebP-сжатие GLB срезало резкость принта на 14%, поэтому
 # пишем их ещё и отдельными файлами: лицо без потерь (quality 100 у Блендера = lossless), изнанку q95.
-# Сцена подменяет ими сжатые копии из GLB (Scene.jsx, JACKET_TEXTURES); те остаются запасными.
+# Сцена подменяет ими сжатые копии из GLB (products.js, textures); те остаются запасными.
 # Альфу выбрасываем: в материале она не подключена, а браузер под нулевой альфой теряет цвет.
 textures_dir = os.path.join(os.path.dirname(os.path.abspath(out)), 'textures')
 os.makedirs(textures_dir, exist_ok=True)
 for name, file, quality in (
-    ('Jacket Texture.png.001', 'jacket-front.webp', 100),
-    ('Jacket Texture Back.png', 'jacket-back.webp', 95),
+    (garment['front'], f'{product}-front.webp', 100),
+    (garment['back'], f'{product}-back.webp', 95),
 ):
     src = bpy.data.images[name]
     w, h = src.size
@@ -56,13 +80,13 @@ for name, file, quality in (
     dst.filepath_raw = os.path.join(textures_dir, file)
     dst.save(quality=quality)
 
-jacket = bpy.data.objects['Jacket']
-back = jacket.copy()
-back.data = jacket.data.copy()
-back.name = 'JacketBack'
-back.data.materials[0] = textured('JacketBack', 'Jacket Texture Back.png')
-jacket.data.materials[0] = textured('JacketFront', 'Jacket Texture.png.001')
-for c in jacket.users_collection:
+name = garment['name']
+back = keep.copy()
+back.data = keep.data.copy()
+back.name = name + 'Back'
+back.data.materials[0] = textured(name + 'Back', garment['back'])
+keep.data.materials[0] = textured(name + 'Front', garment['front'])
+for c in keep.users_collection:
     c.objects.link(back)
 
 # Меш без материала Блендер рисует серым 0.8, а glTF по умолчанию белым — дверь выходила

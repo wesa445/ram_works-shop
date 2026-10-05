@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PerformanceMonitor, useGLTF } from '@react-three/drei'
 import {
@@ -39,8 +39,8 @@ const SOFTWARE_RENDERER = (() => {
   }
 })()
 
-// Сцена собирается из Jacket.blend скриптом scripts/export-scene.py (npm run scene)
-const MODEL = '/scene.glb'
+// Сцена товара — свой GLB (product.scene), собирается из Jacket.blend скриптом
+// scripts/export-scene.py (npm run scene). Грузится только сцена товара на экране.
 const DRACO = '/draco/' // меши сжаты Draco, декодер лежит локально — без внешнего CDN
 const SHADOW_MAP = SOFTWARE_RENDERER ? 512 : QUALITY.shadowMap
 
@@ -71,9 +71,7 @@ const fitFov = (baseFov, aspect) => {
 //
 // zoom — множитель дистанции поверх ползунка «Запас кадра»; pitch — подъём точки
 // подлёта над исходным направлением взгляда, в градусах.
-const TARGETS = [
-  { id: 'jacket', meshes: ['Jacket', 'JacketBack'], zoom: 1, pitch: 0 },
-]
+const targetsOf = (product) => [{ id: product.id, meshes: product.meshes, zoom: 1, pitch: 0 }]
 const FOCUS_SPEED = 0.05 // доля пути за кадр при 60 Гц; меньше — дольше наезд
 const ARRIVE_AT = 0.1 // доля дистанции, на которой наезд считается законченным
 // На узком экране карточка товара — блок текста и белая плашка снизу (index.css, граница 900 px).
@@ -95,14 +93,11 @@ const AUTO_SPIN = 0.25 // рад/с — оборот за 25 секунд
 const AUTO_SPIN_START = 1500 // мс после открытия карточки: сначала камера доезжает
 const AUTO_SPIN_RESUME = 2500 // мс после того, как человек отпустил куртку
 const REDUCED_MOTION = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-const SPUN = ['Jacket', 'JacketBack']
 
-// Текстуры куртки без потерь (пишет export-scene.py). В GLB — сжатые копии: показываются, пока
-// эти грузятся, и остаются, если не загрузились.
-const JACKET_TEXTURES = [
-  ['Jacket', '/textures/jacket-front.webp'],
-  ['JacketBack', '/textures/jacket-back.webp'],
-]
+// Переход между товарами: камера уезжает вбок на эту долю расстояния до товара, сцена гаснет,
+// новая появляется смещённой с другой стороны и доезжает на место (App.jsx, slide/enterFrom)
+const SLIDE_SHARE = 0.25
+const SLIDE_SPEED = 0.06 // доля пути за кадр при 60 Гц
 
 // Контур: копия геометрии, раздутая по нормалям и отрисованная задними гранями.
 // Толщина в пикселях экрана, но не больше доли от экранного радиуса самого меша.
@@ -208,10 +203,13 @@ const _ndc = new Vector2()
 // Камера. Базовая поза плавно переезжает между исходной и приближённой, поверх —
 // параллакс за курсором. Параллакс вращает камеру вокруг точки, а не сцену: геометрия
 // и свет неподвижны, значит замороженная карта теней верна.
-function CameraRig({ paramsRef, home, focus, focused, onArrive }) {
+function CameraRig({ paramsRef, home, focus, focused, onArrive, slide = 0, enterFrom = 0 }) {
   const pose = useRef(null)
   const sway = useRef({ x: 0, y: 0 })
   const arrived = useRef(false)
+  // Сдвиг вбок для перехода между товарами, в долях SLIDE_SHARE: новая сцена появляется
+  // смещённой (enterFrom) и доезжает до slide — обычно до нуля
+  const shift = useRef(enterFrom)
 
   useFrame((state, delta) => {
     const p = paramsRef.current
@@ -266,6 +264,13 @@ function CameraRig({ paramsRef, home, focus, focused, onArrive }) {
 
     camera.position.copy(cur.position).sub(cur.pivot).applyQuaternion(_qWorld).add(cur.pivot)
     camera.quaternion.copy(cur.quaternion).multiply(_q)
+
+    shift.current += (slide - shift.current) * (1 - Math.pow(1 - SLIDE_SPEED, delta * 60))
+    if (Math.abs(shift.current) > 1e-4) {
+      // Вбок по горизонтали кадра: правая ось камеры без вертикальной составляющей
+      _v.set(1, 0, 0).applyQuaternion(cur.quaternion).setY(0).normalize()
+      camera.position.addScaledVector(_v, shift.current * SLIDE_SHARE * cur.position.distanceTo(cur.pivot))
+    }
   })
 
   return null
@@ -286,11 +291,10 @@ function meshBox(mesh, box = new Box3()) {
 //   куртка           59       84         77           62
 // Неметаллам — ослабленный блик, ткани куртки — никакого. Металлы (ручка двери) не трогаем.
 const SPECULAR = 0.3
-const MATTE = ['Jacket', 'JacketBack']
 
-// Лицо и изнанка куртки — две копии одной геометрии (см. export-scene.py): первая рисуется
-// только лицом, вторая только изнанкой. Идемпотентно — StrictMode зовёт дважды.
-function prepareMaterials(scene) {
+// Лицо и изнанка вещи — две копии одной геометрии (см. export-scene.py): первая рисуется
+// только лицом, вторая только изнанкой. Ткань — без блика. Идемпотентно — StrictMode зовёт дважды.
+function prepareMaterials(scene, [frontName, backName]) {
   const swapped = new Map() // материал общий у нескольких мешей — замена тоже одна
   scene.traverse((o) => {
     const old = o.material
@@ -298,7 +302,7 @@ function prepareMaterials(scene) {
     if (!swapped.has(old)) {
       const base = { name: old.name, map: old.map, color: old.color, side: old.side }
       // На телефоне (quality.js) без блика все неметаллы: физический материал там — треть кадра
-      swapped.set(old, QUALITY.lambert || MATTE.includes(o.name)
+      swapped.set(old, QUALITY.lambert || o.name === frontName || o.name === backName
         ? new MeshLambertMaterial(base)
         : new MeshPhysicalMaterial({ ...base, roughness: old.roughness, roughnessMap: old.roughnessMap, specularIntensity: SPECULAR }))
       old.dispose()
@@ -306,16 +310,36 @@ function prepareMaterials(scene) {
     o.material = swapped.get(old)
   })
 
-  const front = scene.getObjectByName('Jacket')
-  const back = scene.getObjectByName('JacketBack')
+  const front = scene.getObjectByName(frontName)
+  const back = scene.getObjectByName(backName)
   if (front?.isMesh && back?.isMesh) {
     front.material.side = FrontSide
     back.material.side = BackSide
   }
 }
 
-function Model({ paramsRef, focusedId, onFocus, onArrive }) {
-  const { scene, cameras } = useGLTF(MODEL, DRACO)
+// Всё, что держит видеокарта, — геометрия, материалы, текстуры. Сцена ушла с экрана —
+// освобождаем сразу, а не ждём сборщика мусора: две сцены по 3 МБ на телефоне — уже тесно.
+function disposeScene(scene) {
+  scene.traverse((o) => {
+    o.geometry?.dispose()
+    for (const m of [o.material].flat().filter(Boolean)) {
+      for (const v of Object.values(m)) if (v?.isTexture) v.dispose()
+      m.dispose()
+    }
+  })
+}
+
+function Model({ product, paramsRef, focusedId, onFocus, onArrive, onShown, slide, enterFrom }) {
+  const { scene, cameras } = useGLTF(product.scene, DRACO)
+
+  // Сцена на экране — сообщаем наверх: там выгружается прошлая и снимается затемнение перехода.
+  // Выгружать в очистке этого же эффекта нельзя: StrictMode в dev зовёт её сразу после монтирования,
+  // кэш загрузчика пустел, сцена грузилась заново по кругу — и новая приходила с лампами без
+  // поправки яркости, кадр засвечивало добела.
+  useEffect(() => {
+    onShown(product.scene, scene)
+  }, [scene, product.scene, onShown])
   const set = useThree((s) => s.set)
   const size = useThree((s) => s.size)
   const gl = useThree((s) => s.gl)
@@ -338,7 +362,7 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
   const fov = fitFov(baseFovRef.current, size.width / size.height)
 
   // До расчётов ниже: контур смотрит на сторону материала, чтобы не дублировать изнанку
-  useMemo(() => prepareMaterials(scene), [scene])
+  useMemo(() => prepareMaterials(scene, product.meshes), [scene, product.meshes])
 
   const [hoveredId, setHoveredId] = useState(null)
   const hoveredRef = useRef(null)
@@ -356,7 +380,7 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
     const loader = new TextureLoader()
     const anisotropy = gl.capabilities.getMaxAnisotropy() // принт не мылится, когда куртка повёрнута
     const loaded = []
-    for (const [name, url] of JACKET_TEXTURES) {
+    for (const [name, url] of product.textures) {
       const mesh = scene.getObjectByName(name)
       if (!mesh?.isMesh) continue
       loader.load(url, (texture) => {
@@ -369,7 +393,7 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
       })
     }
     return () => loaded.forEach((texture) => texture.dispose())
-  }, [scene, gl])
+  }, [scene, gl, product.textures])
 
   useLayoutEffect(() => {
     if (!camera) return
@@ -383,13 +407,13 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
   // Имена в объекты — один раз. Отсутствующие пропускаем: переименование в Блендере
   // не должно ронять сцену.
   const targets = useMemo(() => {
-    return TARGETS.map(({ id, meshes, zoom, pitch }) => ({
+    return targetsOf(product).map(({ id, meshes, zoom, pitch }) => ({
       id,
       zoom: zoom ?? 1,
       pitch: pitch ?? 0,
       objects: meshes.map((name) => scene.getObjectByName(name)).filter((o) => o?.isMesh),
     })).filter((t) => t.objects.length > 0)
-  }, [scene])
+  }, [scene, product])
 
   // Габариты целей для клика и наведения, с запасом в 15% размера: на телефоне куртка шириной
   // в палец, и тап между рукавом и полой уходил мимо. Наведение по тем же коробкам — курсор-палец
@@ -591,15 +615,15 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
   // Вращение куртки. Исходные повороты запоминаем, угол накладываем поверх вокруг
   // мировой вертикали. На общем плане куртка плавно возвращается в исходное положение.
   const spun = useMemo(
-    () => SPUN.map((name) => scene.getObjectByName(name)).filter(Boolean)
+    () => product.meshes.map((name) => scene.getObjectByName(name)).filter(Boolean)
       .map((object) => ({ object, base: object.quaternion.clone() })),
-    [scene],
+    [scene, product.meshes],
   )
   const spin = useRef({ angle: 0, goal: 0, dragX: null, autoAt: Infinity, stale: false, tick: 0 })
 
   useEffect(() => {
     const s = spin.current
-    if (focusedId !== 'jacket') {
+    if (focusedId !== product.id) {
       // К ближайшему целому обороту, а не к нулю: после трёх оборотов куртка иначе
       // раскручивалась бы назад все три
       s.goal = Math.round(s.angle / (2 * Math.PI)) * 2 * Math.PI
@@ -629,7 +653,7 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-  }, [focusedId, gl])
+  }, [focusedId, gl, product.id])
 
   // Наведение — собственным лучом каждый кадр, а не событиями R3F: курсор может стоять,
   // пока камера едет от параллакса, и объект уплывает из-под него без событий.
@@ -700,7 +724,7 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
 
   // Курсор-палец над кликабельным объектом, «рука» над курткой в режиме вращения
   useEffect(() => {
-    const cursor = hoveredId ? 'pointer' : focusedId === 'jacket' ? 'grab' : ''
+    const cursor = hoveredId ? 'pointer' : focusedId === product.id ? 'grab' : ''
     document.body.style.cursor = cursor
     return () => {
       document.body.style.cursor = ''
@@ -716,6 +740,8 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
         <>
           <SceneLights paramsRef={paramsRef} scene={scene} radius={home.radius} />
           <CameraRig
+            slide={slide}
+            enterFrom={enterFrom}
             paramsRef={paramsRef}
             home={home}
             focus={focus}
@@ -728,7 +754,22 @@ function Model({ paramsRef, focusedId, onFocus, onArrive }) {
   )
 }
 
-export default function Scene({ paramsRef, focusedId, onFocus, onArrive }) {
+// product — товар на экране; при смене сцена прошлого товара размонтируется и выгружается (key),
+// новая грузится заново. slide/enterFrom — сдвиг камеры при переходе (App.jsx).
+export default function Scene({ product, paramsRef, focusedId, onFocus, onArrive, onReady, slide, enterFrom }) {
+  // Сцена ушла с экрана — выгружаем её из видеопамяти и из кэша загрузчика: вернуться к товару —
+  // значит загрузить заново. Освобождаем, только когда на экране уже сцена другого товара.
+  const shown = useRef(null)
+  const onShown = useCallback((url, scene) => {
+    const prev = shown.current
+    if (prev && prev.url !== url) {
+      disposeScene(prev.scene)
+      useGLTF.clear(prev.url)
+    }
+    shown.current = { url, scene }
+    onReady?.()
+  }, [onReady])
+
   // Потолок плотности пикселей — по уровню качества (quality.js); если кадр всё равно не успевает,
   // PerformanceMonitor опускает его до 1. Обратно не поднимаем: мигание резкости хуже мыла.
   const [maxDpr, setMaxDpr] = useState(QUALITY.maxDpr)
@@ -748,7 +789,17 @@ export default function Scene({ paramsRef, focusedId, onFocus, onArrive }) {
       shadows={{ type: PCFShadowMap }}
     >
       <Suspense fallback={null}>
-        <Model paramsRef={paramsRef} focusedId={focusedId} onFocus={onFocus} onArrive={onArrive} />
+        <Model
+          key={product.id}
+          product={product}
+          paramsRef={paramsRef}
+          focusedId={focusedId}
+          onFocus={onFocus}
+          onArrive={onArrive}
+          onShown={onShown}
+          slide={slide}
+          enterFrom={enterFrom}
+        />
       </Suspense>
       <AmbientLight paramsRef={paramsRef} />
       <FillLight paramsRef={paramsRef} focused={!!focusedId} />
@@ -757,4 +808,3 @@ export default function Scene({ paramsRef, focusedId, onFocus, onArrive }) {
   )
 }
 
-useGLTF.preload(MODEL, DRACO)

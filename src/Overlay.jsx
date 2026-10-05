@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CART_ENABLED, formatPrice, ORDER_URL, PRODUCT } from './product.js'
+import { CART_ENABLED, formatPrice, ORDER_URL } from './product.js'
 
 // Интерфейс поверх сцены по макетам из Paper: общий план и карточка товара (крупный план).
 // Оба слоя смонтированы всегда и переключаются прозрачностью — без перерисовки и скачков.
@@ -13,7 +13,8 @@ function Arrow({ side }) {
   )
 }
 
-export default function Overlay({ view, onOpen, onHome, cartCount, onCart, onAdd }) {
+// onPrev/onNext — перелистывание товаров; null, пока идёт переход или товар один
+export default function Overlay({ product, view, onOpen, onHome, onPrev, onNext, cartCount, onCart, onAdd }) {
   const [size, setSize] = useState(null)
 
   return (
@@ -31,7 +32,7 @@ export default function Overlay({ view, onOpen, onHome, cartCount, onCart, onAdd
         <span className="dim">Бюро Наблюдений</span>
         <span className="bureau-name">специзделия</span>
       </div>
-      <h1 className="title">{PRODUCT.title}</h1>
+      <h1 className="title">{product.title}</h1>
 
       {/* Крестик — назад на общий план. Вне слоя карточки: на телефоне тот прокручивается */}
       <button className="close" onClick={onHome} disabled={view !== 'card'} aria-label="Вернуться на общий план">
@@ -54,23 +55,22 @@ export default function Overlay({ view, onOpen, onHome, cartCount, onCart, onAdd
       {/* Телефон, карточка: белая плашка снизу по макету — название, цена, оформить выдачу.
           На десктопе её нет (index.css): там цена и кнопка в левой колонке карточки. */}
       <div className="bar" inert={view !== 'card'}>
-        <p>{PRODUCT.title}</p>
+        <p>{product.title}</p>
         <div className="bar-row">
-          <span>{formatPrice(PRODUCT.price)}</span>
+          <span>{formatPrice(product.price)}</span>
           {/* ponytail: при включённой корзине сюда понадобится и выбор размера */}
           {CART_ENABLED ? (
-            <button className="bar-order" onClick={() => onAdd(PRODUCT.id, size)} disabled={!size}>[ добавить в корзину ]</button>
+            <button className="bar-order" onClick={() => onAdd(product.id, size)} disabled={!size}>[ добавить в корзину ]</button>
           ) : (
             <a className="bar-order" href={ORDER_URL} target="_blank" rel="noopener">[ оформить выдачу ]</a>
           )}
         </div>
       </div>
 
-      {/* Общий план. Стрелки — перелистывание товаров; товар пока один, они неактивны */}
+      {/* Общий план. Стрелки — перелистывание товаров (переход — в App.jsx) */}
       <div className="layer home" inert={view !== 'home'}>
-        <button className="nav nav-prev" disabled aria-label="Предыдущий товар"><Arrow side="prev" /></button>
-        <button className="nav nav-next" disabled aria-label="Следующий товар"><Arrow side="next" /></button>
-        <span className="soon dim">ведутся работы</span>
+        <button className="nav nav-prev" onClick={onPrev} disabled={!onPrev} aria-label="Предыдущий товар"><Arrow side="prev" /></button>
+        <button className="nav nav-next" onClick={onNext} disabled={!onNext} aria-label="Следующий товар"><Arrow side="next" /></button>
         <button className="open" onClick={onOpen}>[ ознакомиться ]</button>
       </div>
 
@@ -78,29 +78,29 @@ export default function Overlay({ view, onOpen, onHome, cartCount, onCart, onAdd
       <div className="layer card" inert={view !== 'card'}>
         <section className="card-main">
           <div className="card-facts">
-            {PRODUCT.specs.map(([label, value]) => (
+            {product.specs.map(([label, value]) => (
               <div className="spec" key={label}>
                 <span className="dim">{label}:</span> <span>{value}</span>
               </div>
             ))}
-            <p>{PRODUCT.note}</p>
-            <p className="card-text">{PRODUCT.description}</p>
+            <p>{product.note}</p>
+            <p className="card-text">{product.description}</p>
           </div>
           <div className="buy">
             {/* Размер нужен только корзине: в Telegram по ссылке его не передать — покупатель называет
                 его в переписке. Без выбранного размера добавить нельзя — иначе в заказ уйдёт не тот */}
             {CART_ENABLED && (
               <div className="sizes" role="radiogroup" aria-label="Размер">
-                {PRODUCT.sizes.map((s) => (
+                {product.sizes.map((s) => (
                   <button key={s} role="radio" aria-checked={size === s} className={size === s ? 'on' : ''} onClick={() => setSize(s)}>
                     [ {s} ]
                   </button>
                 ))}
               </div>
             )}
-            <span className="price">{formatPrice(PRODUCT.price)}</span>
+            <span className="price">{formatPrice(product.price)}</span>
             {CART_ENABLED ? (
-              <button className="add" onClick={() => onAdd(PRODUCT.id, size)} disabled={!size} title={size ? undefined : 'Выберите размер'}>
+              <button className="add" onClick={() => onAdd(product.id, size)} disabled={!size} title={size ? undefined : 'Выберите размер'}>
                 [ добавить в корзину ]
               </button>
             ) : (
@@ -111,8 +111,8 @@ export default function Overlay({ view, onOpen, onHome, cartCount, onCart, onAdd
           </div>
         </section>
         <section className="card-lore card-text">
-          {PRODUCT.lore.map((p) => <p key={p}>{p}</p>)}
-          <a className="report" href={PRODUCT.reportUrl} target="_blank" rel="noopener">[ читать рапорт происшествия ]</a>
+          {product.lore.map((p) => <p key={p}>{p}</p>)}
+          <a className="report" href={product.reportUrl} target="_blank" rel="noopener">[ читать рапорт происшествия ]</a>
         </section>
       </div>
     </div>

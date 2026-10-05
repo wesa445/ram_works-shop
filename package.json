@@ -10,7 +10,7 @@
     "check": "node scripts/check-orders.mjs",
     "deploy": "npm run check && vercel deploy --prod --yes --project ram-works-shop",
     "deploy:dev": "npm run check && vercel deploy --prod --yes --project ram-works-shop-dev",
-    "scene": "C:/Games/Steam/steamapps/common/Blender/blender.exe -b \"D:/Blender Projects/Aquarium/Wear/Jacket.blend\" --python scripts/export-scene.py -- public/scene.glb"
+    "scene": "C:/Games/Steam/steamapps/common/Blender/blender.exe -b \"D:/Blender Projects/Aquarium/Wear/Jacket.blend\" --python scripts/export-scene.py -- public/scene-jacket.glb jacket && C:/Games/Steam/steamapps/common/Blender/blender.exe -b \"D:/Blender Projects/Aquarium/Wear/Jacket.blend\" --python scripts/export-scene.py -- public/scene-hoodie.glb hoodie"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
